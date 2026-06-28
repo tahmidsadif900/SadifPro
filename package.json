@@ -3,14 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-  "dev": "node server.js",
-  "build": "NODE_OPTIONS='--max-old-space-size=460' next build",
-  "start": "NODE_ENV=production node server.js",
-  "postinstall": "prisma generate"
-}
+    "dev": "node server.js",
+    "build": "NODE_OPTIONS=--max-old-space-size=460 next build",
+    "start": "NODE_ENV=production node server.js",
+    "postinstall": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts"
-  },
+    },
   "dependencies": {
     "next": "^14.2.5",
     "react": "^18.3.1",
