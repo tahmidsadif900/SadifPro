@@ -1,0 +1,488 @@
+// Sadif Pro - Complete Database Schema
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  username          String?   @unique
+  name              String?
+  passwordHash      String
+  avatar            String?
+  bio               String?
+  emailVerified     DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  lastSeenAt        DateTime  @default(now())
+  status            UserStatus @default(OFFLINE)
+  
+  profile           Profile?
+  sessions          Session[]
+  accounts          Account[]
+  sentMessages      Message[] @relation("MessageSender")
+  chatParticipants  ChatParticipant[]
+  ownedChats        Chat[] @relation("ChatOwner")
+  reactions         MessageReaction[]
+  starredMessages   StarredMessage[]
+  pinnedMessages    PinnedMessage[]
+  notifications     Notification[]
+  statuses          Status[]
+  ownedChannels     Channel[] @relation("ChannelOwner")
+  channelFollows    ChannelFollow[]
+  reportsFiled      Report[] @relation("Reporter")
+  reportsAgainst    Report[] @relation("Reported")
+  devices           DeviceSession[]
+  contacts          Contact[] @relation("UserContacts")
+  contactOf         Contact[] @relation("ContactUser")
+  pollsCreated      Poll[]
+  pollVotes         PollVote[]
+  reminders         Reminder[]
+  
+  @@map("users")
+}
+
+model Profile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  theme           String   @default("system")
+  language        String   @default("en")
+  notificationSound Boolean @default(true)
+  readReceipts    Boolean  @default(true)
+  lastSeenVisible Boolean  @default(true)
+  typingIndicators Boolean @default(true)
+  
+  @@map("profiles")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("sessions")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Chat {
+  id              String      @id @default(cuid())
+  type            ChatType    @default(DIRECT)
+  name            String?
+  description     String?
+  avatar          String?
+  ownerId         String?
+  owner           User?       @relation("ChatOwner", fields: [ownerId], references: [id])
+  isArchived      Boolean     @default(false)
+  isPinned        Boolean     @default(false)
+  lastMessageAt   DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  
+  participants    ChatParticipant[]
+  messages        Message[]
+  pinnedMessages  PinnedMessage[]
+  
+  @@map("chats")
+}
+
+model ChatParticipant {
+  id          String    @id @default(cuid())
+  chatId      String
+  userId      String
+  role        ChatRole  @default(MEMBER)
+  joinedAt    DateTime  @default(now())
+  lastReadAt  DateTime?
+  isMuted     Boolean   @default(false)
+  isPinned    Boolean   @default(false)
+  
+  chat        Chat      @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([chatId, userId])
+  @@map("chat_participants")
+}
+
+model Message {
+  id              String        @id @default(cuid())
+  chatId          String
+  senderId        String
+  content         String?
+  type            MessageType   @default(TEXT)
+  replyToId       String?
+  forwardedFromId String?
+  isEdited        Boolean       @default(false)
+  isDeleted       Boolean       @default(false)
+  deletedAt       DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  chat            Chat          @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender          User          @relation("MessageSender", fields: [senderId], references: [id])
+  replyTo         Message?      @relation("MessageReply", fields: [replyToId], references: [id])
+  replies         Message[]     @relation("MessageReply")
+  forwardedFrom   Message?      @relation("MessageForward", fields: [forwardedFromId], references: [id])
+  forwards        Message[]     @relation("MessageForward")
+  
+  reactions       MessageReaction[]
+  attachments     Attachment[]
+  starredBy       StarredMessage[]
+  pinnedIn        PinnedMessage[]
+  poll            Poll?
+  reminder        Reminder?
+  
+  @@index([chatId, createdAt])
+  @@map("messages")
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+  
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([messageId, userId, emoji])
+  @@map("message_reactions")
+}
+
+model Attachment {
+  id        String         @id @default(cuid())
+  messageId String
+  type      AttachmentType
+  url       String
+  name      String?
+  size      Int?
+  mimeType  String?
+  width     Int?
+  height    Int?
+  duration  Int?
+  createdAt DateTime       @default(now())
+  
+  message   Message        @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  
+  @@map("attachments")
+}
+
+model StarredMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  messageId String
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, messageId])
+  @@map("starred_messages")
+}
+
+model PinnedMessage {
+  id        String   @id @default(cuid())
+  chatId    String
+  messageId String
+  userId    String
+  createdAt DateTime @default(now())
+  
+  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([chatId, messageId])
+  @@map("pinned_messages")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String?
+  data      Json?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("notifications")
+}
+
+model Status {
+  id        String    @id @default(cuid())
+  userId    String
+  type      StatusType @default(TEXT)
+  content   String?
+  mediaUrl  String?
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  views     StatusView[]
+  
+  @@map("statuses")
+}
+
+model StatusView {
+  id        String   @id @default(cuid())
+  statusId  String
+  viewerId  String
+  viewedAt  DateTime @default(now())
+  
+  status    Status   @relation(fields: [statusId], references: [id], onDelete: Cascade)
+  
+  @@unique([statusId, viewerId])
+  @@map("status_views")
+}
+
+model Channel {
+  id              String    @id @default(cuid())
+  name            String
+  username        String    @unique
+  description     String?
+  avatar          String?
+  ownerId         String
+  isPublic        Boolean   @default(true)
+  subscriberCount Int       @default(0)
+  createdAt       DateTime  @default(now())
+  
+  owner           User      @relation("ChannelOwner", fields: [ownerId], references: [id])
+  followers       ChannelFollow[]
+  
+  @@map("channels")
+}
+
+model ChannelFollow {
+  id        String   @id @default(cuid())
+  channelId String
+  userId    String
+  followedAt DateTime @default(now())
+  
+  channel   Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([channelId, userId])
+  @@map("channel_follows")
+}
+
+model Call {
+  id          String     @id @default(cuid())
+  chatId      String?
+  initiatorId String
+  type        CallType
+  status      CallStatus @default(INITIATED)
+  startedAt   DateTime   @default(now())
+  endedAt     DateTime?
+  duration    Int?
+  
+  @@map("calls")
+}
+
+model DeviceSession {
+  id          String   @id @default(cuid())
+  userId      String
+  deviceName  String?
+  ipAddress   String?
+  userAgent   String?
+  lastActive  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("device_sessions")
+}
+
+model Contact {
+  id          String   @id @default(cuid())
+  userId      String
+  contactId   String
+  label       String?
+  isBlocked   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  
+  user        User     @relation("UserContacts", fields: [userId], references: [id], onDelete: Cascade)
+  contact     User     @relation("ContactUser", fields: [contactId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, contactId])
+  @@map("contacts")
+}
+
+model Poll {
+  id          String     @id @default(cuid())
+  messageId   String     @unique
+  question    String
+  options     Json
+  allowMultiple Boolean  @default(false)
+  expiresAt   DateTime?
+  createdById String
+  createdAt   DateTime   @default(now())
+  
+  message     Message    @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  creator     User       @relation(fields: [createdById], references: [id])
+  votes       PollVote[]
+  
+  @@map("polls")
+}
+
+model PollVote {
+  id        String   @id @default(cuid())
+  pollId    String
+  userId    String
+  optionIndex Int
+  createdAt DateTime @default(now())
+  
+  poll      Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([pollId, userId, optionIndex])
+  @@map("poll_votes")
+}
+
+model Reminder {
+  id          String    @id @default(cuid())
+  userId      String
+  messageId   String    @unique
+  remindAt    DateTime
+  isCompleted Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message     Message   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  
+  @@map("reminders")
+}
+
+model Report {
+  id          String       @id @default(cuid())
+  reporterId  String
+  reportedId  String
+  reason      ReportReason
+  description String?
+  status      ReportStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  resolvedAt  DateTime?
+  
+  reporter    User         @relation("Reporter", fields: [reporterId], references: [id])
+  reported    User         @relation("Reported", fields: [reportedId], references: [id])
+  
+  @@map("reports")
+}
+
+enum UserStatus {
+  ONLINE
+  OFFLINE
+  AWAY
+  BUSY
+}
+
+enum ChatType {
+  DIRECT
+  GROUP
+  CHANNEL
+}
+
+enum ChatRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  FILE
+  VOICE
+  POLL
+  SYSTEM
+}
+
+enum AttachmentType {
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+  VOICE
+}
+
+enum NotificationType {
+  MESSAGE
+  MENTION
+  REACTION
+  CALL
+  GROUP_INVITE
+  SYSTEM
+}
+
+enum StatusType {
+  TEXT
+  IMAGE
+  VIDEO
+}
+
+enum CallType {
+  VOICE
+  VIDEO
+}
+
+enum CallStatus {
+  INITIATED
+  RINGING
+  ONGOING
+  ENDED
+  MISSED
+  DECLINED
+}
+
+enum ReportReason {
+  SPAM
+  HARASSMENT
+  INAPPROPRIATE_CONTENT
+  IMPERSONATION
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWING
+  RESOLVED
+  DISMISSED
+}
