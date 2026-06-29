@@ -5,7 +5,7 @@ WORKDIR /app
 FROM base AS deps
 COPY package.json ./
 COPY prisma ./prisma
-RUN npm install --legacy-peer-deps
+RUN npm install
 
 FROM base AS builder
 WORKDIR /app
@@ -14,6 +14,7 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED 1
 ENV NODE_OPTIONS="--max-old-space-size=460"
 RUN npx prisma generate
+RUN npm install
 RUN npx next build
 
 FROM base AS runner
